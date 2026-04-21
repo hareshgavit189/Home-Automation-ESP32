@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Home Automation ESP32 Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700;900&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-deep: #050d18;
+      --bg-card: rgba(8, 22, 40, 0.85);
+      --bg-panel: rgba(6, 16, 30, 0.9);
+      --accent: #00e5ff;
+      --accent-dim: rgba(0, 229, 255, 0.12);
+      --accent-glow: rgba(0, 229, 255, 0.45);
+      --on-color: #00e676;
+      --on-glow: rgba(0, 230, 118, 0.5);
+      --off-color: #546e7a;
+      --danger: #ff1744;
+      --danger-glow: rgba(255, 23, 68, 0.45);
+      --text-primary: #e0f7fa;
+      --text-secondary: #607d8b;
+      --border: rgba(0, 229, 255, 0.18);
+      --font-mono: 'Share Tech Mono', monospace;
+      --font-main: 'Exo 2', sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background-color: var(--bg-deep);
+      color: var(--text-primary);
+      font-family: var(--font-main);
+      overflow-x: hidden;
+    }
+
+    /* ── Grid background ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(0,229,255,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,229,255,.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+    }
+
+    /* ── Orb glows ── */
+    body::after {
+      content: '';
+      position: fixed;
+      top: -180px; left: -180px;
+      width: 520px; height: 520px;
+      background: radial-gradient(circle, rgba(0,180,255,.13) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 0;
+      animation: orbDrift 12s ease-in-out infinite alternate;
+    }
+
+    @keyframes orbDrift {
+      from { transform: translate(0, 0); }
+      to   { transform: translate(80px, 60px); }
+    }
+
+    #app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ── Header ── */
+    header {
+      padding: 28px 40px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(0,229,255,.06) 0%, transparent 100%);
+    }
+
+    .header-left { display: flex; align-items: center; gap: 16px; }
+
+    .logo-icon {
+      width: 44px; height: 44px;
+      border: 2px solid var(--accent);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 16px var(--accent-glow), inset 0 0 10px var(--accent-dim);
+      animation: pulseBorder 3s ease-in-out infinite;
+    }
+
+    @keyframes pulseBorder {
+      0%, 100% { box-shadow: 0 0 10px var(--accent-glow), inset 0 0 8px var(--accent-dim); }
+      50%       { box-shadow: 0 0 22px var(--accent-glow), inset 0 0 14px rgba(0,229,255,.2); }
+    }
+
+    .logo-icon svg { width: 24px; height: 24px; fill: var(--accent); }
+
+    .brand h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      color: var(--text-primary);
+      line-height: 1.1;
+    }
+
+    .brand span {
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      color: var(--accent);
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    #live-time {
+      font-family: var(--font-mono);
+      font-size: .85rem;
+      color: var(--text-secondary);
+      letter-spacing: .1em;
+    }
+
+    /* ── Main ── */
+    main { flex: 1; padding: 40px 24px 60px; max-width: 1100px; margin: 0 auto; width: 100%; }
+
+    /* ── Login ── */
+    #loginSection {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      animation: fadeIn .6s ease;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+
+    .login-card {
+      width: 100%;
+      max-width: 420px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 42px 36px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 0 60px rgba(0,0,0,.5), 0 0 30px rgba(0,229,255,.06);
+    }
+
+    .login-header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .login-header .icon-wrap {
+      width: 64px; height: 64px;
+      background: var(--accent-dim);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .login-header .icon-wrap svg { width: 32px; height: 32px; fill: var(--accent); }
+
+    .login-header h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: .04em;
+    }
+
+    .login-header p {
+      font-size: .85rem;
+      color: var(--text-secondary);
+      margin-top: 6px;
+    }
+
+    .field-label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: .72rem;
+      color: var(--accent);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin-bottom: 7px;
+      margin-top: 20px;
+    }
+
+    .login-card input {
+      width: 100%;
+      background: rgba(0,229,255,.05);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: .9rem;
+      outline: none;
+      transition: border-color .3s, box-shadow .3s;
+    }
+
+    .login-card input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-dim);
+    }
+
+    .login-card input::placeholder { color: var(--text-secondary); }
+
+    .btn-login {
+      width: 100%;
+      margin-top: 28px;
+      padding: 13px;
+      background: linear-gradient(135deg, #00b8d4, #00e5ff);
+      border: none;
+      border-radius: 10px;
+      color: #020c18;
+      font-family: var(--font-main);
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      cursor: pointer;
+      transition: transform .2s, box-shadow .2s;
+      box-shadow: 0 4px 20px var(--accent-glow);
+    }
+
+    .btn-login:hover { transform: translateY(-2px); box-shadow: 0 8px 28px var(--accent-glow); }
+    .btn-login:active { transform: translateY(0); }
+
+    #loginError {
+      margin-top: 14px;
+      font-size: .82rem;
+      color: var(--danger);
+      text-align: center;
+      min-height: 1.2em;
+      font-family: var(--font-mono);
+      letter-spacing: .06em;
+    }
+
+    /* ── Dashboard ── */
+    #dashboard { display: none; animation: fadeIn .5s ease; }
+
+    .dash-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-bottom: 36px;
+    }
+
+    .dash-topbar h2 {
+      font-size: 1.05rem;
+      font-weight: 400;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      letter-spacing: .08em;
+    }
+
+    .dash-topbar h2 span { color: var(--accent); font-weight: 600; }
+
+    .topbar-actions { display: flex; gap: 12px; }
+
+    .btn-alloff {
+      padding: 10px 22px;
+      background: transparent;
+      border: 1px solid var(--danger);
+      border-radius: 9px;
+      color: var(--danger);
+      font-family: var(--font-main);
+      font-size: .85rem;
+      font-weight: 600;
+      letter-spacing: .06em;
+      cursor: pointer;
+      transition: background .25s, box-shadow .25s, transform .2s;
+    }
+    .btn-alloff:hover {
+      background: rgba(255,23,68,.1);
+      box-shadow: 0 0 16px var(--danger-glow);
+      transform: translateY(-1px);
+    }
+
+    .btn-logout {
+      padding: 10px 22px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      color: var(--text-secondary);
+      font-family: var(--font-main);
+      font-size: .85rem;
+      font-weight: 600;
+      letter-spacing: .06em;
+      cursor: pointer;
+      transition: border-color .25s, color .25s, transform .2s;
+    }
+    .btn-logout:hover { border-color: #90a4ae; color: var(--text-primary); transform: translateY(-1px); }
+
+    /* ── Status bar ── */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 20px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 36px;
+      font-family: var(--font-mono);
+      font-size: .78rem;
+      color: var(--text-secondary);
+    }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--on-color);
+      box-shadow: 0 0 8px var(--on-glow);
+      animation: blink 2s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; } 50% { opacity: .4; }
+    }
+
+    .status-bar span { color: var(--on-color); }
+
+    /* ── Relay Grid ── */
+    .relay-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 22px;
+    }
+
+    .relay-card {
+      position: relative;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 26px 24px 24px;
+      backdrop-filter: blur(20px);
+      overflow: hidden;
+      transition: transform .3s, box-shadow .3s, border-color .3s;
+    }
+
+    .relay-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: 0;
+      transition: opacity .4s;
+    }
+
+    .relay-card.is-on::before { opacity: 1; background: linear-gradient(90deg, transparent, var(--on-color), transparent); }
+    .relay-card.is-on { border-color: rgba(0,230,118,.25); box-shadow: 0 0 30px rgba(0,230,118,.1); }
+
+    .relay-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,.4); }
+
+    .relay-num {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      color: var(--accent);
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      opacity: .7;
+    }
+
+    .relay-name {
+      font-size: 1.2rem;
+      font-weight: 700;
+      letter-spacing: .03em;
+      margin-bottom: 20px;
+      color: var(--text-primary);
+    }
+
+    .relay-indicator {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 22px;
+    }
+
+    .indicator-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: var(--off-color);
+      transition: background .4s, box-shadow .4s;
+      flex-shrink: 0;
+    }
+
+    .relay-card.is-on .indicator-dot {
+      background: var(--on-color);
+      box-shadow: 0 0 10px var(--on-glow);
+      animation: blink 1.8s ease-in-out infinite;
+    }
+
+    .relay-status-text {
+      font-family: var(--font-mono);
+      font-size: .82rem;
+      color: var(--off-color);
+      letter-spacing: .1em;
+      transition: color .3s;
+    }
+
+    .relay-card.is-on .relay-status-text { color: var(--on-color); }
+
+    .btn-toggle {
+      width: 100%;
+      padding: 11px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(0,229,255,.07);
+      color: var(--text-primary);
+      font-family: var(--font-main);
+      font-size: .88rem;
+      font-weight: 600;
+      letter-spacing: .05em;
+      cursor: pointer;
+      transition: background .25s, border-color .25s, box-shadow .25s, transform .2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-toggle::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,.06), transparent);
+      pointer-events: none;
+    }
+
+    .btn-toggle:hover {
+      background: rgba(0,229,255,.14);
+      border-color: var(--accent);
+      box-shadow: 0 0 14px var(--accent-glow);
+      transform: translateY(-1px);
+    }
+
+    .relay-card.is-on .btn-toggle {
+      background: rgba(0,230,118,.12);
+      border-color: rgba(0,230,118,.35);
+    }
+
+    .relay-card.is-on .btn-toggle:hover {
+      background: rgba(0,230,118,.2);
+      box-shadow: 0 0 14px var(--on-glow);
+    }
+
+    .card-corner-icon {
+      position: absolute;
+      top: 20px; right: 20px;
+      opacity: .12;
+    }
+    .card-corner-icon svg { width: 36px; height: 36px; fill: var(--accent); }
+
+    /* ── Summary bar ── */
+    .summary-bar {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-top: 36px;
+    }
+
+    .summary-chip {
+      flex: 1;
+      min-width: 160px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .summary-chip .chip-icon {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      background: var(--accent-dim);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .summary-chip .chip-icon svg { width: 18px; height: 18px; fill: var(--accent); }
+
+    .chip-label {
+      font-family: var(--font-mono);
+      font-size: .68rem;
+      color: var(--text-secondary);
+      letter-spacing: .1em;
+      text-transform: uppercase;
+    }
+
+    .chip-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1;
+      margin-top: 4px;
+    }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 20px;
+      font-family: var(--font-mono);
+      font-size: .7rem;
+      color: var(--text-secondary);
+      letter-spacing: .1em;
+      border-top: 1px solid var(--border);
+    }
+
+    footer a { color: var(--accent); text-decoration: none; }
+
+    /* ── Responsive ── */
+    @media (max-width: 640px) {
+      header { padding: 18px 20px; }
+      main { padding: 28px 16px 50px; }
+      .relay-grid { grid-template-columns: 1fr 1fr; gap: 14px; }
+      .relay-card { padding: 20px 16px; }
+      .topbar-actions { width: 100%; }
+      .btn-alloff, .btn-logout { flex: 1; }
+    }
+
+    @media (max-width: 420px) {
+      .relay-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Header -->
+  <header>
+    <div class="header-left">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
+        </svg>
+      </div>
+      <div class="brand">
+        <h1>Home Automation</h1>
+        <span>ESP32 Dashboard</span>
+      </div>
+    </div>
+    <div id="live-time"></div>
+  </header>
+
+  <main>
+
+    <!-- LOGIN -->
+    <div id="loginSection">
+      <div class="login-card">
+        <div class="login-header">
+          <div class="icon-wrap">
+            <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+          </div>
+          <h2>Secure Access</h2>
+          <p>Sign in to manage your smart relays</p>
+        </div>
+        <label class="field-label" for="email">// Email Address</label>
+        <input type="email" id="email" placeholder="user@example.com" autocomplete="username" />
+        <label class="field-label" for="password">// Password</label>
+        <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+        <button class="btn-login" id="loginBtn">AUTHENTICATE</button>
+        <div id="loginError"></div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="dashboard">
+
+      <div class="dash-topbar">
+        <h2>RELAY CONTROL &nbsp;/&nbsp; <span id="userLabel">–</span></h2>
+        <div class="topbar-actions">
+          <button class="btn-alloff" id="allOffBtn">⬛ ALL OFF</button>
+          <button class="btn-logout" id="logoutBtn">↩ LOGOUT</button>
+        </div>
+      </div>
+
+      <div class="status-bar">
+        <div class="status-dot"></div>
+        <span>FIREBASE CONNECTED</span>
+        &nbsp;·&nbsp; Real-time sync active &nbsp;·&nbsp; <span id="lastUpdate">–</span>
+      </div>
+
+      <div class="relay-grid" id="relayGrid">
+        <!-- Cards injected by JS -->
+      </div>
+
+      <div class="summary-bar">
+        <div class="summary-chip">
+          <div class="chip-icon">
+            <svg viewBox="0 0 24 24"><path d="M17 8C8 10 5.9 16.17 3.82 21.34L5.71 22l1-2.3A4.49 4.49 0 0 0 8 20c8 0 10-8 10-8l-1-4z"/></svg>
+          </div>
+          <div>
+            <div class="chip-label">Relays On</div>
+            <div class="chip-value" id="onCount">0</div>
+          </div>
+        </div>
+        <div class="summary-chip">
+          <div class="chip-icon">
+            <svg viewBox="0 0 24 24"><path d="M20 8h-3V4H3c-1.1 0-2 .9-2 2v11h2c0 1.66 1.34 3 3 3s3-1.34 3-3h6c0 1.66 1.34 3 3 3s3-1.34 3-3h2v-5l-3-4zM6 18.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>
+          </div>
+          <div>
+            <div class="chip-label">Total Relays</div>
+            <div class="chip-value">4</div>
+          </div>
+        </div>
+        <div class="summary-chip">
+          <div class="chip-icon">
+            <svg viewBox="0 0 24 24"><path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3c-1.65-1.66-4.34-1.66-6 0zm-4-4 2 2c2.76-2.76 7.24-2.76 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/></svg>
+          </div>
+          <div>
+            <div class="chip-label">Network</div>
+            <div class="chip-value" style="font-size:1rem;color:var(--on-color)">Online</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer>
+    &copy; 2024 Home Automation ESP32 Dashboard &nbsp;·&nbsp; Real-time Firebase sync &nbsp;·&nbsp; <a href="#">v2.0</a>
+  </footer>
+</div>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-auth-compat.js"></script>
+
+<script>
+  /* ── Live clock ── */
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('live-time').textContent =
+      now.toLocaleDateString('en-GB', { weekday:'short', day:'2-digit', month:'short' }) + '  ' +
+      now.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  /* ── Firebase ── */
+  const firebaseConfig = {
+    apiKey: "AIzaSyD87vZO4ZhmudnnL9UN1ZfMXWUEV8sJU_o",
+    authDomain: "home-automation-esp32-36a6d.firebaseapp.com",
+    databaseURL: "https://home-automation-esp32-36a6d-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "home-automation-esp32-36a6d",
+    storageBucket: "home-automation-esp32-36a6d.firebasestorage.app",
+    messagingSenderId: "46575747522",
+    appId: "1:46575747522:web:4abb2081f9cf5adb89965b",
+    measurementId: "G-TEZ7V9VEDJ"
+  };
+  firebase.initializeApp(firebaseConfig);
+
+  const allowedEmail = "abc@gmail.com";
+  const allowedPassword = "12345678";
+
+  const relayDefs = [
+    { id: 1, path: "relay1", name: "Relay 1" },
+    { id: 2, path: "relay2", name: "Relay 2" },
+    { id: 3, path: "relay3", name: "Relay 3" },
+    { id: 4, path: "relay4", name: "Relay 4" },
+  ];
+
+  const relayStates = { 1: false, 2: false, 3: false, 4: false };
+
+  /* ── Build relay cards ── */
+  function buildCards() {
+    const grid = document.getElementById('relayGrid');
+    grid.innerHTML = '';
+    relayDefs.forEach(r => {
+      grid.innerHTML += `
+        <div class="relay-card" id="card${r.id}">
+          <div class="card-corner-icon">
+            <svg viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+          </div>
+          <div class="relay-num">// CHANNEL ${String(r.id).padStart(2,'0')}</div>
+          <div class="relay-name">${r.name}</div>
+          <div class="relay-indicator">
+            <div class="indicator-dot" id="dot${r.id}"></div>
+            <span class="relay-status-text" id="status${r.id}">Loading…</span>
+          </div>
+          <button class="btn-toggle" id="btn${r.id}">Toggle</button>
+        </div>`;
+    });
+  }
+
+  function updateOnCount() {
+    const on = Object.values(relayStates).filter(Boolean).length;
+    document.getElementById('onCount').textContent = on;
+  }
+
+  function setRelayUI(id, state) {
+    relayStates[id] = !!state;
+    const card   = document.getElementById(`card${id}`);
+    const status = document.getElementById(`status${id}`);
+    card.classList.toggle('is-on', !!state);
+    status.textContent = state ? 'ON' : 'OFF';
+    document.getElementById('lastUpdate').textContent =
+      'Last update: ' + new Date().toLocaleTimeString();
+    updateOnCount();
+  }
+
+  /* ── Start control ── */
+  function startRelayControl(email) {
+    buildCards();
+    document.getElementById('userLabel').textContent = email;
+    const db = firebase.database();
+
+    relayDefs.forEach(relay => {
+      const ref = db.ref('/' + relay.path);
+
+      ref.on('value', snap => {
+        setRelayUI(relay.id, snap.val());
+      });
+
+      document.getElementById(`btn${relay.id}`).onclick = () => {
+        ref.get().then(snap => ref.set(!snap.val()));
+      };
+    });
+
+    document.getElementById('allOffBtn').onclick = () => {
+      relayDefs.forEach(r => db.ref('/' + r.path).set(false));
+    };
+  }
+
+  /* ── Login ── */
+  document.getElementById('loginBtn').onclick = () => {
+    const email = document.getElementById('email').value.trim();
+    const pass  = document.getElementById('password').value;
+    const errEl = document.getElementById('loginError');
+    errEl.textContent = '';
+
+    if (!email || !pass) { errEl.textContent = '⚠ Please enter email and password.'; return; }
+
+    if (email === allowedEmail && pass === allowedPassword) {
+      firebase.auth().signInWithEmailAndPassword(email, pass)
+        .then(cred => {
+          document.getElementById('loginSection').style.display = 'none';
+          document.getElementById('dashboard').style.display = 'block';
+          startRelayControl(cred.user.email);
+        })
+        .catch(err => { errEl.textContent = '⚠ ' + err.message; });
+    } else {
+      errEl.textContent = '⚠ Invalid credentials. Access denied.';
+    }
+  };
+
+  /* ── Enter key login ── */
+  ['email','password'].forEach(id => {
+    document.getElementById(id).addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('loginBtn').click();
+    });
+  });
+
+  /* ── Logout ── */
+  document.getElementById('logoutBtn').onclick = () => {
+    firebase.auth().signOut().then(() => {
+      document.getElementById('dashboard').style.display = 'none';
+      document.getElementById('loginSection').style.display = 'flex';
+      document.getElementById('email').value = '';
+      document.getElementById('password').value = '';
+    }).catch(err => alert('Logout failed: ' + err.message));
+  };
+</script>
+</body>
+</html>
